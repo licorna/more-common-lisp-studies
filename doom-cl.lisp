@@ -18,6 +18,9 @@
 ;; 8 byte (ascii string) name of lump (padded with NULL bytes)
 
 
+(defparameter *my-wad-file* "zdoom/doom2.wad")
+
+
 ;; from the book
 (defmacro with-gensyms ((&rest names) &body body)
   `(let ,(loop for n in names collect `(,n (make-symbol ,(string n))))
@@ -54,6 +57,10 @@
     (setf (ldb (byte 8 24) numb) (read-byte in))
     numb))
 
+(defmethod read-value ((type (eql 'noop)) in &key)
+  "Used to add slots that won't be initialized."
+  nil)
+
 (defun mklist (x) (if (listp x) x (list x)))
 
 (defun normalize-slot-spec (spec)
@@ -75,18 +82,53 @@
              ,@(mapcar #'(lambda (x) (slot->read-value x streamvar)) slots))
            ,objectvar)))))
 
+(defun read-current-lump (in)
+  "Reads the LUMP in the current file position."
+  (let ((result nil))
+    (push (read-value 'u4 in) result)
+    (push (read-value 'u4 in) result)
+    (push (remove #\0 (read-value 'iso-8859-1-string in :length 8)) result)
+    result))
+
+(defun read-lump (in wad-object lump-number)
+  "This sets the file position to where the lump-number should start, and then
+it reads from that place."
+  (let ((absolute-position (+ (slot-value wad-object 'directory-offset)
+                              (* lump-number 16))))
+    (file-position in absolute-position)
+    (read-current-lump in)))
+
+(defun read-lump-meta (in wad-object)
+  "Reads all lumps and store in *lumps* global."
+  (let ((directory-offset (slot-value wad-object 'directory-offset)))
+    (file-position in directory-offset)
+    (dotimes (i (slot-value wad-object 'number-of-lumps))
+      (push (read-current-lump in) (slot-value wad-object 'lumps)))))
+
+
 (define-binary-class wad-file
     ((identifier (iso-8859-1-string :length 4))
      (number-of-lumps u4)
      (directory-offset u4)
-     ))
+     (lumps noop)))
 
-(defparameter *my-wad-file* "zdoom/doom2.wad")
 
+(setf in (open *my-wad-file* :element-type '(unsigned-byte 8)))
 (setf wad-object
-      (read-value 'wad-file
-                  (open *my-wad-file* :element-type '(unsigned-byte 8))))
+      (read-value 'wad-file in))
 
 (slot-value wad-object 'identifier)
 (slot-value wad-object 'number-of-lumps)
 (slot-value wad-object 'directory-offset)
+
+;; After the object has been created, the lumps can be read by doing
+(read-lump-meta in wad-object)
+(close in)
+
+
+
+;; very ugly implementation as I have to maintain the file descriptor open.
+;; I'll try to implement something that reads everylump at the beggining and
+;; then the file descriptor can be closed.
+;; (read-lump in wad-object 0) ;; first lump
+;; (read-lump in wad-object 1) ;; second lump
