@@ -49,6 +49,7 @@
       (write-char (code-char (read-byte in)) s))
     s))
 
+
 (defmethod read-value ((type (eql 'u4)) in &key)
   (let ((numb 0))
     (setf (ldb (byte 8 0) numb) (read-byte in))
@@ -87,7 +88,7 @@
   (let ((result nil))
     (push (read-value 'u4 in) result)
     (push (read-value 'u4 in) result)
-    (push (remove #\0 (read-value 'iso-8859-1-string in :length 8)) result)
+    (push (remove #\Nul (read-value 'iso-8859-1-string in :length 8)) result)
     result))
 
 (defun read-lump (in wad-object lump-number)
@@ -124,7 +125,7 @@ it reads from that place."
 ;; After the object has been created, the lumps can be read by doing
 (read-lump-meta in wad-object)
 (close in)
-
+(slot-value wad-object 'lumps)
 
 
 ;; very ugly implementation as I have to maintain the file descriptor open.
