@@ -18,8 +18,7 @@
 ;; 8 byte (ascii string) name of lump (padded with NULL bytes)
 
 
-(defparameter *my-wad-file* "zdoom/doom2.wad")
-
+(defparameter *my-wad-file* "doom2.wad")
 
 ;; from the book
 (defmacro with-gensyms ((&rest names) &body body)
@@ -87,7 +86,7 @@
   (let ((result nil))
     (push (read-value 'u4 in) result)
     (push (read-value 'u4 in) result)
-    (push (remove #\0 (read-value 'iso-8859-1-string in :length 8)) result)
+    (push (remove #\Nul (read-value 'iso-8859-1-string in :length 8)) result)
     result))
 
 (defun read-lump (in wad-object lump-number)
@@ -98,12 +97,37 @@ it reads from that place."
     (file-position in absolute-position)
     (read-current-lump in)))
 
+(defun read-current-map (in current-lump)
+  "Expects current lump to be a lump of type map. Will append every following
+lump to this one, until finding a lump with size 0."
+  (let ((map-lumps nil)
+        (current nil)
+        (i 0))
+    (loop do
+      (incf i)
+      (setf current (read-current-lump in))
+      (if (not (= (second current) 0))
+          (push current map-lumps))
+          while (and (not (= (second current) 0))
+                     (< i 10)))
+    (if (= (second current) 0)
+        (file-position in (- (file-position in) 16)))  ;; not consume last lump
+    (append current-lump (list map-lumps))))
+
 (defun read-lump-meta (in wad-object)
-  "Reads all lumps and store in *lumps* global."
-  (let ((directory-offset (slot-value wad-object 'directory-offset)))
+  "Reads lumps from stream. Also moves stuff from maps into a "
+  (let ((lumps nil)
+        (directory-offset (slot-value wad-object 'directory-offset)))
     (file-position in directory-offset)
-    (dotimes (i (slot-value wad-object 'number-of-lumps))
-      (push (read-current-lump in) (slot-value wad-object 'lumps)))))
+    (do ((i 2 (1+ i))
+         (current))
+        ((or (= i (slot-value wad-object 'number-of-lumps))
+             (>= (file-position in) (file-length in))))
+      (setf current (read-current-lump in))
+      (if (eq (search "MAP" (first current)) 0)
+          (push (read-current-map in current) lumps)
+          (push current lumps)))
+    lumps))
 
 
 (define-binary-class wad-file
@@ -116,15 +140,10 @@ it reads from that place."
 (setf in (open *my-wad-file* :element-type '(unsigned-byte 8)))
 (setf wad-object
       (read-value 'wad-file in))
-
+(setf (slot-value wad-object 'lumps) (read-lump-meta in wad-object))
 (slot-value wad-object 'identifier)
 (slot-value wad-object 'number-of-lumps)
 (slot-value wad-object 'directory-offset)
-
-;; After the object has been created, the lumps can be read by doing
-(read-lump-meta in wad-object)
-(close in)
-
 
 
 ;; very ugly implementation as I have to maintain the file descriptor open.
