@@ -22,4 +22,7 @@ The first milestone will be to be able to read a WAD file from Common Lisp, and 
 
 Being able to read a wad file:
 
-* [DOING] Correctly identify a file as a wad file (check header)
+* [DONE] Correctly identify a file as a wad file (check header)
+* [DONE] Read wad file directory
+* [DONE] Read wad file MAP lump
+* [TODO] Read map structure
