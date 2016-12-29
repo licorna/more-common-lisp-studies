@@ -48,6 +48,7 @@
       (write-char (code-char (read-byte in)) s))
     s))
 
+
 (defmethod read-value ((type (eql 'u4)) in &key)
   (let ((numb 0))
     (setf (ldb (byte 8 0) numb) (read-byte in))
@@ -179,7 +180,6 @@ lump to this one, until finding a lump with size 0."
 (slot-value wad-object 'identifier)
 (slot-value wad-object 'number-of-lumps)
 (slot-value wad-object 'directory-offset)
-
 
 ;; very ugly implementation as I have to maintain the file descriptor open.
 ;; I'll try to implement something that reads everylump at the beggining and
