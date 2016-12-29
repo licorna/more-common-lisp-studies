@@ -56,6 +56,25 @@
     (setf (ldb (byte 8 24) numb) (read-byte in))
     numb))
 
+(defmethod read-value ((type (eql 'u2)) in &key)
+  (let ((numb 0))
+    (setf (ldb (byte 8 0) numb) (read-byte in))
+    (setf (ldb (byte 8 8) numb) (read-byte in))
+    numb))
+
+(defun unsigned-to-signed (value size)
+  (let ((max-signed (expt 2 (1- (* 8 size))))
+        (to-subtract (expt 2 (* 8 size))))
+    (if (>= value max-signed)
+        (- value to-subtract)
+        value)))
+
+(defmethod read-value ((type (eql 's2)) in &key)
+  (let ((numb 0))
+    (setf (ldb (byte 8 0) numb) (read-byte in))
+    (setf (ldb (byte 8 8) numb) (read-byte in))
+    (unsigned-to-signed numb 2)))
+
 (defmethod read-value ((type (eql 'noop)) in &key)
   "Used to add slots that won't be initialized."
   nil)
@@ -128,6 +147,22 @@ lump to this one, until finding a lump with size 0."
           (push (read-current-map in current) lumps)
           (push current lumps)))
     lumps))
+
+(defun read-thing0 (in)
+  (list (read-value 's2 in) ;; x-position
+        (read-value 's2 in) ;; y-position
+        (read-value 'u2 in) ;; angle
+        (read-value 'u2 in) ;; type
+        (read-value 'u2 in) ;; spawn-flags
+        ))
+
+(defun read-thing (thing in)
+  (let ((thing-size (second thing))
+        (things nil))
+    (file-position in (third thing))
+    (dotimes (i (/ thing-size 10))
+      (push (read-thing0 in) things))
+    things))
 
 
 (define-binary-class wad-file
