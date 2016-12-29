@@ -149,10 +149,20 @@ lump to this one, until finding a lump with size 0."
           (push current lumps)))
     lumps))
 
+(defun thing-angle (angle)
+  (case angle
+    (0 'east)
+    (45 'north-east)
+    (90 'north)
+    (135 'north-west)
+    (180 'west)
+    (225 'south-west)
+    (270 'south)))
+
 (defun read-thing0 (in)
   (list (read-value 's2 in) ;; x-position
         (read-value 's2 in) ;; y-position
-        (read-value 'u2 in) ;; angle
+        (thing-angle (read-value 'u2 in)) ;; angle
         (read-value 'u2 in) ;; type
         (read-value 'u2 in) ;; spawn-flags
         ))
