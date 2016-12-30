@@ -17,6 +17,8 @@
 ;; 4 byte (long) size of lump in bytes
 ;; 8 byte (ascii string) name of lump (padded with NULL bytes)
 
+(ql:quickload "alexandria")
+
 
 (defparameter *my-wad-file* "doom2.wad")
 
@@ -44,7 +46,10 @@
 
 (defmethod read-value ((type (eql 'iso-8859-1-string)) in &key length)
   (with-output-to-string (s)
-    (dotimes (i length)
+    (do* ((i 0 (1+ i))
+          (new-char (read-byte in)))
+         ((eq new-char 73)
+          (eq i length))
       (write-char (code-char (read-byte in)) s))
     s))
 
@@ -117,6 +122,16 @@ it reads from that place."
     (file-position in absolute-position)
     (read-current-lump in)))
 
+(defun process-lump (lump in)
+  (let ((file-position-restore (file-position in))
+        (result (alexandria:switch ((first lump) :test #'string=)
+                  ("THINGS" (list "THINGS" (read-things lump in)))
+                  ("LINEDEFS" (list "LINEDEFS" (read-linedefs lump in)))
+            ;;      ("SIDEDEFS" (list "SIDEDEFS" (read-sidedefs lump in)))
+                 (t lump))))
+    (file-position in file-position-restore)
+    result))
+
 (defun read-current-map (in current-lump)
   "Expects current lump to be a lump of type map. Will append every following
 lump to this one, until finding a lump with size 0."
@@ -127,7 +142,7 @@ lump to this one, until finding a lump with size 0."
       (incf i)
       (setf current (read-current-lump in))
       (if (not (= (second current) 0))
-          (push current map-lumps))
+          (push (process-lump current in) map-lumps))
           while (and (not (= (second current) 0))
                      (< i 10)))
     (if (= (second current) 0)
@@ -167,7 +182,7 @@ lump to this one, until finding a lump with size 0."
         (read-value 'u2 in) ;; spawn-flags
         ))
 
-(defun read-thing (thing in)
+(defun read-things (thing in)
   (let ((thing-size (second thing))
         (things nil))
     (file-position in (third thing))
@@ -175,6 +190,40 @@ lump to this one, until finding a lump with size 0."
       (push (read-thing0 in) things))
     things))
 
+(defun read-linedef0 (in)
+  (list (read-value 'u2 in) ;; beginning vertex
+        (read-value 'u2 in) ;; ending vertex
+        (read-value 'u2 in) ;; flags
+        (read-value 'u2 in) ;; line-type
+        (read-value 'u2 in) ;; sector tag
+        (read-value 'u2 in) ;; right sidef
+        (read-value 'u2 in) ;; left sidef
+        ))
+
+(defun read-linedefs (linedef in)
+  (let ((linedef-size (second linedef))
+        (linedefs nil))
+    (file-position in (third linedef))
+    (dotimes (i (/ linedef-size 14))
+      (push (read-linedef0 in) linedefs))
+    linedefs))
+
+(defun read-sidedef0 (in)
+  (list (read-value 's2 in) ;; x offset
+        (read-value 's2 in) ;; y offset
+        (read-value 'iso-8859-1-string in :length 8) ;; upper-texture
+        (read-value 'iso-8859-1-string in :length 8) ;; lower-texture
+        (read-value 'iso-8859-1-string in :length 8) ;; middle-texture
+        (read-value 'u2 in) ;; Sector reference
+        ))
+
+(defun read-sidedefs (sidef in)
+  (let ((sidef-size (second sidef))
+        (sidefs nil))
+    (file-position in (third sidef))
+    (dotimes (i (/ sidef-size 30))
+      (push (read-sidef0 in) sidefs))
+    sidefs))
 
 (define-binary-class wad-file
     ((identifier (iso-8859-1-string :length 4))
@@ -182,6 +231,8 @@ lump to this one, until finding a lump with size 0."
      (directory-offset u4)
      (lumps noop)))
 
+(defvar in)
+(defvar wad-object)
 
 (setf in (open *my-wad-file* :element-type '(unsigned-byte 8)))
 (setf wad-object
@@ -190,6 +241,12 @@ lump to this one, until finding a lump with size 0."
 (slot-value wad-object 'identifier)
 (slot-value wad-object 'number-of-lumps)
 (slot-value wad-object 'directory-offset)
+
+;; read one thing:
+;; this will set the my-thing variable to a thing representation
+(defvar some-thing (first (last (fourth (nth 2592 (slot-value wad-object 'lumps))))))
+(defvar my-thing2
+  (read-things some-thing in))
 
 ;; very ugly implementation as I have to maintain the file descriptor open.
 ;; I'll try to implement something that reads everylump at the beggining and
