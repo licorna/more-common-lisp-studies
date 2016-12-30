@@ -45,14 +45,10 @@
   (:documentation "Read a value of the given type from the stream."))
 
 (defmethod read-value ((type (eql 'iso-8859-1-string)) in &key length)
-  (with-output-to-string (s)
-    (do* ((i 0 (1+ i))
-          (new-char (read-byte in)))
-         ((eq new-char 73)
-          (eq i length))
-      (write-char (code-char (read-byte in)) s))
-    s))
-
+  (remove #\Nul
+          (with-output-to-string (s)
+            (dotimes (i length)
+              (write-char (code-char (read-byte in)) s)))))
 
 (defmethod read-value ((type (eql 'u4)) in &key)
   (let ((numb 0))
@@ -122,48 +118,6 @@ it reads from that place."
     (file-position in absolute-position)
     (read-current-lump in)))
 
-(defun process-lump (lump in)
-  (let ((file-position-restore (file-position in))
-        (result (alexandria:switch ((first lump) :test #'string=)
-                  ("THINGS" (list "THINGS" (read-things lump in)))
-                  ("LINEDEFS" (list "LINEDEFS" (read-linedefs lump in)))
-            ;;      ("SIDEDEFS" (list "SIDEDEFS" (read-sidedefs lump in)))
-                 (t lump))))
-    (file-position in file-position-restore)
-    result))
-
-(defun read-current-map (in current-lump)
-  "Expects current lump to be a lump of type map. Will append every following
-lump to this one, until finding a lump with size 0."
-  (let ((map-lumps nil)
-        (current nil)
-        (i 0))
-    (loop do
-      (incf i)
-      (setf current (read-current-lump in))
-      (if (not (= (second current) 0))
-          (push (process-lump current in) map-lumps))
-          while (and (not (= (second current) 0))
-                     (< i 10)))
-    (if (= (second current) 0)
-        (file-position in (- (file-position in) 16)))  ;; not consume last lump
-    (append current-lump (list map-lumps))))
-
-(defun read-lump-meta (in wad-object)
-  "Reads lumps from stream. Also moves stuff from maps into a "
-  (let ((lumps nil)
-        (directory-offset (slot-value wad-object 'directory-offset)))
-    (file-position in directory-offset)
-    (do ((i 2 (1+ i))
-         (current))
-        ((or (= i (slot-value wad-object 'number-of-lumps))
-             (>= (file-position in) (file-length in))))
-      (setf current (read-current-lump in))
-      (if (eq (search "MAP" (first current)) 0)
-          (push (read-current-map in current) lumps)
-          (push current lumps)))
-    lumps))
-
 (defun thing-angle (angle)
   (case angle
     (0 'east)
@@ -222,8 +176,52 @@ lump to this one, until finding a lump with size 0."
         (sidefs nil))
     (file-position in (third sidef))
     (dotimes (i (/ sidef-size 30))
-      (push (read-sidef0 in) sidefs))
+      (push (read-sidedef0 in) sidefs))
     sidefs))
+
+
+(defun process-lump (lump in)
+  (let ((file-position-restore (file-position in))
+        (result (alexandria:switch ((first lump) :test #'string=)
+                  ("THINGS" (list "THINGS" (read-things lump in)))
+                  ("LINEDEFS" (list "LINEDEFS" (read-linedefs lump in)))
+                  ("SIDEDEFS" (list "SIDEDEFS" (read-sidedefs lump in)))
+                  (t lump))))
+    (file-position in file-position-restore)
+    result))
+
+(defun read-current-map (in current-lump)
+  "Expects current lump to be a lump of type map. Will append every following
+lump to this one, until finding a lump with size 0."
+  (let ((map-lumps nil)
+        (current nil)
+        (i 0))
+    (loop do
+      (incf i)
+      (setf current (read-current-lump in))
+      (if (not (= (second current) 0))
+          (push (process-lump current in) map-lumps))
+          while (and (not (= (second current) 0))
+                     (< i 10)))
+    (if (= (second current) 0)
+        (file-position in (- (file-position in) 16)))  ;; not consume last lump
+    (append current-lump (list map-lumps))))
+
+(defun read-lump-meta (in wad-object)
+  "Reads lumps from stream. Also moves stuff from maps into a "
+  (let ((lumps nil)
+        (directory-offset (slot-value wad-object 'directory-offset)))
+    (file-position in directory-offset)
+    (do ((i 2 (1+ i))
+         (current))
+        ((or (= i (slot-value wad-object 'number-of-lumps))
+             (>= (file-position in) (file-length in))))
+      (setf current (read-current-lump in))
+      (if (eq (search "MAP" (first current)) 0)
+          (push (read-current-map in current) lumps)
+          (push current lumps)))
+    lumps))
+
 
 (define-binary-class wad-file
     ((identifier (iso-8859-1-string :length 4))
@@ -241,15 +239,3 @@ lump to this one, until finding a lump with size 0."
 (slot-value wad-object 'identifier)
 (slot-value wad-object 'number-of-lumps)
 (slot-value wad-object 'directory-offset)
-
-;; read one thing:
-;; this will set the my-thing variable to a thing representation
-(defvar some-thing (first (last (fourth (nth 2592 (slot-value wad-object 'lumps))))))
-(defvar my-thing2
-  (read-things some-thing in))
-
-;; very ugly implementation as I have to maintain the file descriptor open.
-;; I'll try to implement something that reads everylump at the beggining and
-;; then the file descriptor can be closed.
-;; (read-lump in wad-object 0) ;; first lump
-;; (read-lump in wad-object 1) ;; second lump
