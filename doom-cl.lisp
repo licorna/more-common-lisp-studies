@@ -179,6 +179,47 @@ it reads from that place."
       (push (read-sidedef0 in) sidefs))
     sidefs))
 
+(defun read-vertex0 (in)
+  (list (read-value 's2 in)  ;; x position
+        (read-value 's2 in)  ;; y position
+        ))
+
+(defun read-vertexes (vertex in)
+  (let ((vertex-size (second vertex))
+        (vertexes nil))
+    (file-position in (third vertex))
+    (dotimes (i (/ vertex-size 4))
+      (push (read-vertex0 in) vertexes))
+    vertexes))
+
+(defun read-segment0 (in)
+  (list (read-value 'u2 in)
+        (read-value 'u2 in)
+        (read-value 's2 in)
+        (read-value 'u2 in)
+        (read-value 's2 in)
+        (read-value 's2 in)))
+
+(defun read-segs (segs in)
+  (let ((segs-size (second segs))
+        (segments nil))
+    (file-position in (third segs))
+    (dotimes (i (/ segs-size 12))
+      (push (read-segment0 in) segments))
+    segments))
+
+(defun read-ssector0 (in)
+  (list (read-value 'u2 in) ;; not sure about specs, it mentions short
+        (read-value 'u2 in) ;; i assume 2 byte unsigned
+        ))
+
+(defun read-ssectors (ssector in)
+  (let ((ssector-size (second ssector))
+        (ssectors nil))
+    (file-position in (third segs))
+    (dotimes (i (/ ssector-size 4))
+      (push (read-ssector0 in) ssectors))
+    ssectors))
 
 (defun process-lump (lump in)
   (let ((file-position-restore (file-position in))
@@ -186,6 +227,9 @@ it reads from that place."
                   ("THINGS" (list "THINGS" (read-things lump in)))
                   ("LINEDEFS" (list "LINEDEFS" (read-linedefs lump in)))
                   ("SIDEDEFS" (list "SIDEDEFS" (read-sidedefs lump in)))
+                  ("VERTEXES" (list "VERTEXES" (read-vertexes lump in)))
+                  ("SEGS" (list "SEGS" (read-segs lump in)))
+                  ("SSECTOR" (list "SSECTORS" (read-ssectors lump in)))
                   (t lump))))
     (file-position in file-position-restore)
     result))
