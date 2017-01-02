@@ -20,7 +20,7 @@
 (ql:quickload "alexandria")
 
 
-(defparameter *my-wad-file* "doom2.wad")
+(defparameter *my-wad-file* "e1m4b.wad")
 
 ;; from the book
 (defmacro with-gensyms ((&rest names) &body body)
@@ -107,7 +107,7 @@
   (let ((result nil))
     (push (read-value 'u4 in) result)
     (push (read-value 'u4 in) result)
-    (push (remove #\Nul (read-value 'iso-8859-1-string in :length 8)) result)
+    (push (read-value 'iso-8859-1-string in :length 8) result)
     result))
 
 (defun read-lump (in wad-object lump-number)
@@ -251,7 +251,7 @@ lump to this one, until finding a lump with size 0."
         (file-position in (- (file-position in) 16)))  ;; not consume last lump
     (append current-lump (list map-lumps))))
 
-(defun read-lump-meta (in wad-object)
+(defun read-maps (in wad-object)
   "Reads lumps from stream. Also moves stuff from maps into a "
   (let ((lumps nil)
         (directory-offset (slot-value wad-object 'directory-offset)))
@@ -261,9 +261,8 @@ lump to this one, until finding a lump with size 0."
         ((or (= i (slot-value wad-object 'number-of-lumps))
              (>= (file-position in) (file-length in))))
       (setf current (read-current-lump in))
-      (if (eq (search "MAP" (first current)) 0)
-          (push (read-current-map in current) lumps)
-          (push current lumps)))
+      (if (eq (search "E1M4" (first current)) 0)
+          (push (read-current-map in current) lumps)))
     lumps))
 
 
@@ -271,7 +270,8 @@ lump to this one, until finding a lump with size 0."
     ((identifier (iso-8859-1-string :length 4))
      (number-of-lumps u4)
      (directory-offset u4)
-     (lumps noop)))
+     (lumps noop)
+     (maps noop)))
 
 (defvar in)
 (defvar wad-object)
@@ -279,7 +279,7 @@ lump to this one, until finding a lump with size 0."
 (setf in (open *my-wad-file* :element-type '(unsigned-byte 8)))
 (setf wad-object
       (read-value 'wad-file in))
-(setf (slot-value wad-object 'lumps) (read-lump-meta in wad-object))
+(setf (slot-value wad-object 'maps) (read-maps in wad-object))
 (slot-value wad-object 'identifier)
 (slot-value wad-object 'number-of-lumps)
 (slot-value wad-object 'directory-offset)
