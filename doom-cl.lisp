@@ -18,6 +18,7 @@
 ;; 8 byte (ascii string) name of lump (padded with NULL bytes)
 
 (ql:quickload "alexandria")
+;; (ql:quickload "sdl")
 
 
 (defparameter *my-wad-file* "e1m4b.wad")
@@ -283,3 +284,71 @@ lump to this one, until finding a lump with size 0."
 (slot-value wad-object 'identifier)
 (slot-value wad-object 'number-of-lumps)
 (slot-value wad-object 'directory-offset)
+
+
+;; this is some test on a SDL library.
+(defvar *random-color* sdl:*white*)
+(defun mouse-rect-2d ()
+  (sdl:with-init ()
+    (sdl:window 1000 600 :title-caption "Move a rectangle using the mouse")
+    (setf (sdl:frame-rate) 60)
+
+    (sdl:with-events ()
+      (:quit-event () t)
+      (:key-down-event ()
+                       (sdl:push-quit-event))
+      (:idle ()
+             (when (sdl:mouse-left-p)
+               (setf *random-color* (sdl:color
+                                     :r (random 255)
+                                     :g (random 255)
+                                     :b (random 255))))
+             (sdl:clear-display sdl:*black*)
+             (sdl:draw-box (sdl:rectangle-from-midpoint-*
+                            (sdl:mouse-x) (sdl:mouse-y) 20 20)
+                           :color *random-color*)
+             (sdl:update-display)))))
+(ASDF:OPERATE 'ASDF:LOAD-OP :LISPBUILDER-SDL)
+
+
+(defun get-bounding-box (vertexes)
+  "Obtain the bounding box (minimum and maximum vertex positions)"
+  (let ((min-x (reduce #'min vertexes :key (lambda (x) (first x))))
+        (min-y (reduce #'min vertexes :key (lambda (x) (second x))))
+        (max-x (reduce #'max vertexes :key (lambda (x) (first x))))
+        (max-y (reduce #'max vertexes :key (lambda (x) (second x)))))
+    (values min-x max-x min-y max-y)))
+
+(defparameter *screen-size-x* 1000)
+(defparameter *screen-size-y* 600)
+
+;; somehow ugly how you get a hold of vertexes
+(defvar *vertexes* (seventh (fourth (first (slot-value wad-object 'maps)))))
+
+(defun screen-factors (min-x max-x min-y max-y)
+  "Get screen factors. Superseded by normalize-position."
+  (values (/ (+ (abs min-x) (abs max-x)) *screen-size-x*)
+          (/ (+ (abs min-y) (abs max-y)) *screen-size-y*)))
+
+(defun distance (p0 p1)
+  (abs (- p1 p0)))
+
+
+(defun normalize-position (min0 max0 min1 max1)
+  "Returns a closure that will normalize a position into
+new coordinate limits min1 max1, from a coordinate set
+min0, max0."
+  (let ((ratio (/ (distance min1 max1)
+                   (distance min0 max0)))
+        (offset (abs min0)))
+    (lambda (x) (coerce (* ratio (+ offset x)) 'float))))
+
+;; for the testing map
+(defvar getx (normalize-position -1856 2152 0 *screen-size-x*))
+(defvar gety (normalize-position -1216 1216 0 *screen-size-y*))
+
+
+;; this is just a test.
+(multiple-value-bind (min-x max-x min-y max-y)
+    (get-bounding-box (second *vertexes*))
+  (screen-factors min-x max-x min-y max-y))
