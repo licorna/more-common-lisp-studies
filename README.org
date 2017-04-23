@@ -1,0 +1,105 @@
+* Doom Common Lisp
+
+This project is an implementation of Doom data structures and
+algorithms (but not graphics or gameplay) in Common Lisp as a learning
+purpose. The ultimate goal is to have:
+
++ IWAD and PWAD file read
++ Read and modify levels
++ Have levels in memory
++ Be able to work with the levels in memory with an API
++ Expose the data so another rendering engine can be used
++ Not sure: Display level maps and be able to build new maps with an API?
++ Learn Common Lisp
+
+* Why Common Lisp?
+
+I've been a fan of Doom for years and I always wanted to learn proper
+Common Lisp, after I started reading Paul Graham's On Lisp
+(http://www.paulgraham.com/onlisp.html) I started to fall in love with
+Common Lisp promises and I wanted to use its capabilities to really
+learn to program. Actually I started reading Let Over Lambda first
+(http://letoverlambda.com/) which brought me to a state of epiphany
+after so many years of being a programmer.
+
+* Project Milestones
+
+The first milestone will be to be able to read a WAD file from Common
+Lisp, and to be able to check its elements. I will write a Common Lisp
+program that will be able to read a WAD file, and store in memory its
+contents.
+
+** Milestone 1
+
+Being able to read a wad file:
+
++ [DONE] Correctly identify a file as a wad file (check header)
++ [DONE] Read wad file directory
++ [DONE] Read wad file MAP lump
++ [TODO] Read map structure
+
+** Milestone 2
+
+Do milestone 1 properly. I'm going to start defining some kind of
+API. I'm not a Common Lisp expert (this is a project to learn), so my
+API might be a bit imperative at first.
+
+#+BEGIN_SRC lisp
+  ;; Following line will read the doom2 wad file and bound
+  ;; its result to the `iwad` object.
+  (setf iwad (read-wad-file "doom2.wad"))
+#+END_SRC
+
+Ok so the `iwad' object will store information about a given IWAD file
+and everything we get in this documentation:
+https://zdoom.org/wiki/WAD should be reachable. Well, not everything,
+but anything necessary to put some logic in the game (but not
+rendering).
+
+Ok, so next step: accesors. I want to use some kind of object oriented
+syntax to access the elements of `iwad` object, like in the following
+example:
+
+#+BEGIN_SRC lisp
+;; next line returns a list of maps
+(slot-value iwad 'maps)
+#+END_SRC
+
+Each map could be a closure that can return its internal state
+somehow:
+
+#+BEGIN_SRC lisp
+  ;; get list of all maps
+  (setf maps (slot-value iwad 'maps))
+
+  ;; get map01... it this OO syntax ok? should I use
+  ;; a property list instead?
+  (setf map01 (slot-value maps 'map01))
+
+  ;; the property list syntax will look like:
+  (getf maps :map01)
+  ;; and it makes sense with lumps having unique names.
+#+END_SRC
+
+That's what I'm going to use, a property list to get the lumps (and
+the aggregation lumps) from the map. A map is going to be a plist
+also, this time it will store the different lumps of the map
+(vertexes, nodes, sidedefs, etc.)
+
+#+BEGIN_SRC lisp
+  ;; should I also change this to a property list instead
+  ;; of an object?
+  (setf maps (slot-value iwad 'maps))
+
+  ;; will store the map01 aggregation lump in `map01'
+  (setf map01 (getf maps :map01))
+
+  ;; how do I access the lumps inside this `map01' object?
+  (getf map01 :things)
+  ((:x 10 :y 20 :angle 90 :type 1 :flags 0)
+   (:x 20 :y 30 :angle 90 :type 2 :flags 0))
+
+#+END_SRC
+
+This way, and considering the wad file structure, the sub lumps for a
+lump, will be accessed by using plist semantics.
