@@ -103,3 +103,64 @@ also, this time it will store the different lumps of the map
 
 This way, and considering the wad file structure, the sub lumps for a
 lump, will be accessed by using plist semantics.
+
+** Ok, back at the basics. What's a WAD
+
+A WAD file is a collection of lumps. A lump is something that
+identifies an object or entity in Doom. Enemies, sprites, sounds,
+items, maps and textures are lumps. These lumps can be grouped
+together. A familiar example of this grouping is a map. A Doom map is
+a collection of lumps with some related sense: Physical construction
+of the map (walls, windows and doors) and entities living in there:
+demons, items and keys.
+
+*** WAD Map Structure
+
+Reference: http://www.gamers.org/dEngine/doom/spec/uds.1666.txt
+
+The WAD file structure is very simple (it was meant for a game written
+25 years ago). It has the following parts:
+
+**** Header
+
+The WAD file header is 12 bytes, it includes the following elements:
+
++ identifier: 4-bytes (chars). "PWAD" or "IWAD".
++ number-of-lumps: 4-bytes. Number of lumps in this file.
++ directory-offset: 4-bytes. Where do the file contents really or
+  "Start of directory"
+
+**** Lump Section
+
+Bulk lump data. You'll need the "directory" to know where every lump
+starts and ends.
+
+**** Directory
+
+The directory contains pointers to every lump in the lump section,
+with its name. Each entry (16 byte) in the directory has the following
+format:
+
++ Start of lump: 4-byte. File offset of start of lump
++ Size of lump: 4-byte. Size in bytes of lump
++ 8-byte ASCII string: Name of the lump
+
+Up to the end of the file.
+
+*** WAD File Reading Process
+
+So the whole process would be the following:
+
+1. Read the header:
+   + Read the identifier
+   + Read amount of lumps
+   + Read directory offset
+2. Go to the directory
+   + Read 16 bytes
+   + 4-bytes -> file offset with start of lump
+   + 4-bytes -> lump size in bytes
+   + 4-bytes -> name of lump
+3. For every lump in point 2
+   + Go to file offset
+   + Read amount of bytes
+   + Parse lump depending on type
