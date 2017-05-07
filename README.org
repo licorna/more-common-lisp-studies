@@ -141,9 +141,9 @@ The directory contains pointers to every lump in the lump section,
 with its name. Each entry (16 byte) in the directory has the following
 format:
 
-+ Start of lump: 4-byte. File offset of start of lump
-+ Size of lump: 4-byte. Size in bytes of lump
-+ 8-byte ASCII string: Name of the lump
+- Start of lump: 4-byte. File offset of start of lump
+- Size of lump: 4-byte. Size in bytes of lump
+- 8-byte ASCII string: Name of the lump
 
 Up to the end of the file.
 
@@ -161,6 +161,6 @@ So the whole process would be the following:
    + 4-bytes -> lump size in bytes
    + 4-bytes -> name of lump
 3. For every lump in point 2
-   + Go to file offset
-   + Read amount of bytes
-   + Parse lump depending on type
+   * Go to file offset
+   * Read amount of bytes
+   * Parse lump depending on type

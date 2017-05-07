@@ -18,82 +18,12 @@
 ;; 8 byte (ascii string) name of lump (padded with NULL bytes)
 
 (ql:quickload "alexandria")
-;; (ql:quickload "sdl")
+(load "binfile.lisp")
+(load "utilities.lisp")
 
 
 (defparameter *my-wad-file* "e1m4b.wad")
 
-;; from the book
-(defmacro with-gensyms ((&rest names) &body body)
-  `(let ,(loop for n in names collect `(,n (make-symbol ,(string n))))
-     ,@body))
-
-(defun as-keyword (sym) (intern (string sym) :keyword))
-
-(defun slot->defclass-slot (spec)
-  (let ((name (first spec)))
-    `(,name :initarg ,(as-keyword name) :accessor ,name)))
-
-(defgeneric read-value (type stream &key)
-  (:documentation "Read a value of the given type from the stream."))
-
-(defmethod read-value ((type (eql 'iso-8859-1-string)) in &key length)
-  (remove #\Nul
-          (with-output-to-string (s)
-            (dotimes (i length)
-              (write-char (code-char (read-byte in)) s)))))
-
-(defmethod read-value ((type (eql 'u4)) in &key)
-  (let ((numb 0))
-    (setf (ldb (byte 8 0) numb) (read-byte in))
-    (setf (ldb (byte 8 8) numb) (read-byte in))
-    (setf (ldb (byte 8 16) numb) (read-byte in))
-    (setf (ldb (byte 8 24) numb) (read-byte in))
-    numb))
-
-(defmethod read-value ((type (eql 'u2)) in &key)
-  (let ((numb 0))
-    (setf (ldb (byte 8 0) numb) (read-byte in))
-    (setf (ldb (byte 8 8) numb) (read-byte in))
-    numb))
-
-(defun unsigned-to-signed (value size)
-  (let ((max-signed (expt 2 (1- (* 8 size))))
-        (to-subtract (expt 2 (* 8 size))))
-    (if (>= value max-signed)
-        (- value to-subtract)
-        value)))
-
-(defmethod read-value ((type (eql 's2)) in &key)
-  (let ((numb 0))
-    (setf (ldb (byte 8 0) numb) (read-byte in))
-    (setf (ldb (byte 8 8) numb) (read-byte in))
-    (unsigned-to-signed numb 2)))
-
-(defmethod read-value ((type (eql 'noop)) in &key)
-  "Used to add slots that won't be initialized."
-  nil)
-
-(defun mklist (x) (if (listp x) x (list x)))
-
-(defun normalize-slot-spec (spec)
-  (list (first spec) (mklist (second spec))))
-
-(defun slot->read-value (spec stream)
-  (destructuring-bind (name (type &rest args)) (normalize-slot-spec spec)
-    `(setf ,name (read-value ',type ,stream ,@args))))
-
-(defmacro define-binary-class (name slots)
-  (with-gensyms (typevar objectvar streamvar)
-    `(progn
-       (defclass ,name ()
-         ,(mapcar #'slot->defclass-slot slots))
-
-       (defmethod read-value ((,typevar (eql ',name)) ,streamvar &key)
-         (let ((,objectvar (make-instance ',name)))
-           (with-slots ,(mapcar #'first slots) ,objectvar
-             ,@(mapcar #'(lambda (x) (slot->read-value x streamvar)) slots))
-           ,objectvar)))))
 
 (defun read-current-lump (in)
   "Reads the LUMP in the current file position."
@@ -258,7 +188,13 @@ lump to this one, until finding a lump with size 0."
           (push (read-current-map in current) lumps)))
     lumps))
 
+;; (defun read-map (wad-object fstream)
+;;   "Reads map and returns it as a plist."
+;;   )
 
+
+;; wad-file binary class is just the header actually
+;; will try to improve this, with sections for lumps and directory.
 (define-binary-class wad-file
     ((identifier (iso-8859-1-string :length 4))
      (number-of-lumps u4)
